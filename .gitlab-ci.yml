@@ -1,0 +1,32 @@
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - docker build --pull -t "$CI_REGISTRY_IMAGE/prod:$CI_COMMIT_SHORT_SHA" .
+    - docker tag $CI_REGISTRY_IMAGE/prod:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE/prod:latest
+    - docker push $CI_REGISTRY_IMAGE/prod:$CI_COMMIT_SHORT_SHA 
+    - docker push $CI_REGISTRY_IMAGE/prod:latest
+  only:
+    - main
+    # only changes in main branch would trigger the pipeline
+
+deploy:
+  stage: deploy
+  image: kroniak/ssh-client
+  script:
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > key.pem
+    - chmod 400 key.pem
+    - ssh -t -o StrictHostKeyChecking=no -i key.pem user@example.com "sudo docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY"
+    - ssh -t -o StrictHostKeyChecking=no -i key.pem user@example.com "sudo docker pull sub.example.com:5050/client/prod"
+    - ssh -t -o StrictHostKeyChecking=no -i key.pem user@example.com "sudo docker stop client-gui || true && sudo docker rm client-gui || true"
+    - ssh -t -o StrictHostKeyChecking=no -i key.pem user@example.com "sudo docker run -p 6091:80 -d --name client-gui sub.example.com:5050/client/prod"
+  only:
+    - main
+    # only changes in main branch would trigger the pipeline
+
+

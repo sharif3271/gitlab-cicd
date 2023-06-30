@@ -21,3 +21,4 @@ sudo docker build .
 
 
 ## CI/CD
+for continuous deployment, we need to put '.gitlab-ci.yml' in the root directory of the project.
