@@ -6,6 +6,18 @@ This repository serves as a comprehensive guide and example for dockerizing fron
 First and foremost, it's important to highlight that I was specifically tasked with installing GitLab on the company's domain instead of utilizing gitlab.com. While the reasons behind this requirement are beyond the scope of this guide, it's worth mentioning that such scenarios may not commonly arise in typical use cases. BTW, the gitLab-ce folder contains Docker Compose files and accompanying descriptions. These resources simplify the configuration and launch of the GitLab CE environment using Docker Compose. Follow the provided instructions for an effortless setup process.
 
 ## Docker
+Put the **nginx.default.conf** and **Dockerfile** in the root directory of your project.
+The output directory for the built project is designated as /build.
+
+You can build image of your project by
+
+```
+sudo docker build .
+```
+
+
+
+
 
 
 ## CI/CD
