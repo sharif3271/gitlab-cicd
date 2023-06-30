@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  gitlab:
+    image: 'gitlab/gitlab-ce:latest'
+    restart: always
+    hostname: 'sub.example.com'
+    container_name: gitlab
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        letsencrypt['enable'] = true
+        external_url 'https://sub.example.com'
+        letsencrypt['contact_emails'] = ['email@example.com']
+        gitlab_rails['dependency_proxy_enabled'] = true
+        gitlab_rails['gitlab_shell_ssh_port'] = 2224
+        nginx['redirect_http_to_https'] = true
+        gitlab_rails['registry_enabled'] = true
+        registry_external_url 'https://sub.example.com:5050'
+        registry_nginx['listen_port'] = 5050
+        registry_nginx['redirect_http_to_https'] = true
+        gitlab_rails['registry_api_url'] = "http://localhost:5000"
+        gitlab_rails['registry_key_path'] = "/certs/registry.key"
+        gitlab_rails['registry_issuer'] = "omnibus-gitlab-issuer"
+
+    ports:
+      - '80:80'
+      - '443:443'
+      - '5050:5050'
+      - '2224:22'
+    volumes:
+      - './config:/etc/gitlab'
+      - './logs:/var/log/gitlab'
+      - './data:/var/opt/gitlab'
+      - ./gitlab/data:/home/git/data
+      - ./certs:/certs
+    shm_size: '256m'
+
+  dind:
+    restart: always
+    privileged: true
+    image: docker:19.03.5-dind
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    command:
+      - --storage-driver=overlay2
+
+  runner:
+    restart: always
+    image: gitlab/gitlab-runner:alpine
+    depends_on:
+      - gitlab
+      - dind
+    volumes:
+      - ./gitlab/runner:/etc/gitlab-runner
+    environment:
+      - DOCKER_HOST=tcp://dind:2375
+
+  register-runner:
+    restart: 'no'
+    image: gitlab/gitlab-runner:alpine
+    depends_on:
+      - runner
+    volumes:
+      - ./gitlab/runner:/etc/gitlab-runner
+    command:
+      - register
+      - --non-interactive
+      - --name=Docker Runner
+      - --executor=docker
+      - --docker-image=docker:stable
+      - --docker-volumes=/var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - CI_SERVER_URL=https://sub.example.com
+      - REGISTRATION_TOKEN=[***YOUR_REGISTRATION_TOKEN***]
+
+  registry:
+    image: registry
+    restart: always
+    expose:
+      - "5000"
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - ./gitlab/shared/registry:/registry
+      - ./certs:/certs
+    environment:
+      - REGISTRY_LOG_LEVEL=info
+      - REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/registry
+      - REGISTRY_AUTH_TOKEN_REALM=https://sub.example.com/jwt/auth
+      - REGISTRY_AUTH_TOKEN_SERVICE=container_registry
+      - REGISTRY_AUTH_TOKEN_ISSUER=gitlab-issuer
+      - REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE=/certs/registry.crt
+      - REGISTRY_STORAGE_DELETE_ENABLED=true
